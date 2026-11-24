@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fake News Detector</title>
+<style>
+  :root{--bg:#f5f6fa;--card:#fff;--text:#1f2430;--muted:#6b7280;--real:#16a34a;--fake:#dc2626;--accent:#4f46e5;--border:#e5e7eb}
+  @media (prefers-color-scheme:dark){:root{--bg:#0f1117;--card:#181b24;--text:#e8eaf0;--muted:#9aa1b2;--border:#2a2f3c}}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text)}
+  main{max-width:760px;margin:0 auto;padding:40px 20px}
+  h1{margin:0 0 6px;font-size:1.9rem} .sub{color:var(--muted);margin:0 0 24px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:22px}
+  textarea{width:100%;min-height:190px;padding:14px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--text);font:inherit;resize:vertical}
+  textarea:focus{outline:2px solid var(--accent)}
+  .row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
+  button{padding:11px 20px;border:0;border-radius:10px;font:inherit;font-weight:600;cursor:pointer}
+  .primary{background:var(--accent);color:#fff} .ghost{background:transparent;color:var(--text);border:1px solid var(--border)}
+  button:disabled{opacity:.6;cursor:wait}
+  #result{margin-top:22px;display:none}
+  .badge{display:inline-block;padding:6px 16px;border-radius:999px;color:#fff;font-weight:700;font-size:1.1rem}
+  .real{background:var(--real)} .fake{background:var(--fake)}
+  .bar{height:12px;border-radius:99px;background:var(--fake);overflow:hidden;margin:14px 0 6px}
+  .bar>div{height:100%;background:var(--real);transition:width .5s}
+  .labels{display:flex;justify-content:space-between;font-size:.85rem;color:var(--muted)}
+  .chips span{display:inline-block;margin:4px 6px 0 0;padding:3px 10px;border-radius:99px;font-size:.85rem;border:1px solid var(--border)}
+  .err{color:var(--fake);margin-top:14px}
+  small{color:var(--muted);display:block;margin-top:18px}
+</style>
+</head>
+<body><main>
+  <h1>📰 Fake News Detector</h1>
+  <p class="sub">Paste a news headline or article. A TF-IDF + machine learning model predicts whether it looks real or fake.</p>
+  <div class="card">
+    <textarea id="text" placeholder="Paste news text here..."></textarea>
+    <div class="row">
+      <button class="primary" id="go">Analyze</button>
+      <button class="ghost" id="ex1">Try real example</button>
+      <button class="ghost" id="ex2">Try fake example</button>
+    </div>
+    <div class="err" id="err"></div>
+    <div id="result">
+      <span class="badge" id="badge"></span> <span id="conf" style="margin-left:8px;color:var(--muted)"></span>
+      <div class="bar"><div id="fill"></div></div>
+      <div class="labels"><span id="pr"></span><span id="pf"></span></div>
+      <div style="margin-top:14px"><b>Words pointing to Real:</b><div class="chips" id="rw"></div></div>
+      <div style="margin-top:10px"><b>Words pointing to Fake:</b><div class="chips" id="fw"></div></div>
+    </div>
+  </div>
+  <small>⚠️ This is a statistical model for learning purposes. It detects writing patterns, not facts - always verify important news with trusted sources.</small>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const chips = (el, arr) => { el.innerHTML = ''; (arr.length ? arr : ['-']).forEach(w => { const s = document.createElement('span'); s.textContent = w; el.appendChild(s); }); };
+$('ex1').onclick = () => $('text').value = "The central bank said on Tuesday that inflation figures rose 3 percent in the last quarter, according to the national statistics office. A spokesperson said further data would be published next month.";
+$('ex2').onclick = () => $('text').value = "SHOCKING!!! A famous doctor EXPOSED for hiding a miracle cure the government doesn't want you to know. Share before it gets deleted!!!";
+$('go').onclick = async () => {
+  $('err').textContent = ''; $('result').style.display = 'none';
+  $('go').disabled = true; $('go').textContent = 'Analyzing...';
+  try {
+    const r = await fetch('/api/predict', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({text: $('text').value})});
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Request failed');
+    $('badge').textContent = d.label === 'Real' ? '✅ Likely REAL' : '🚨 Likely FAKE';
+    $('badge').className = 'badge ' + d.label.toLowerCase();
+    $('conf').textContent = d.confidence + '% confidence';
+    $('fill').style.width = d.prob_real + '%';
+    $('pr').textContent = 'Real ' + d.prob_real + '%'; $('pf').textContent = 'Fake ' + d.prob_fake + '%';
+    chips($('rw'), d.key_words.real); chips($('fw'), d.key_words.fake);
+    $('result').style.display = 'block';
+  } catch (e) { $('err').textContent = e.message; }
+  $('go').disabled = false; $('go').textContent = 'Analyze';
+};
+</script></body></html>
